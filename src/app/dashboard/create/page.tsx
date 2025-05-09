@@ -600,7 +600,7 @@ export default function CreateVideo() {
             visual_style: visualStyleData,
           }),
         });
-
+        
         if (!response.ok) {
           throw new Error("Failed to fetch content from URL");
         }

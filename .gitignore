@@ -3,15 +3,14 @@
 # dependencies
 /node_modules
 /.pnp
-.pnp.*
-.yarn/*
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/versions
+.pnp.js
+yarn.lock
+package-lock.json
 
 # testing
 /coverage
+/cypress/videos
+/cypress/screenshots
 
 # next.js
 /.next/
@@ -19,10 +18,12 @@
 
 # production
 /build
+/dist
 
 # misc
 .DS_Store
 *.pem
+Thumbs.db
 
 # debug
 npm-debug.log*
@@ -30,57 +31,29 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*
-
-# vercel
-.vercel
-
-# typescript
-*.tsbuildinfo
-next-env.d.ts
-
-# Node.js dependencies
-node_modules/
-npm-debug.log
-yarn-debug.log
-yarn-error.log
-package-lock.json
-yarn.lock
-
-# Build files
-/build
-/dist
-/.next/
-/out/
-
-# Environment variables
+# local env files
 .env
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
 
-# IDE
-.idea/
-.vscode/
-*.swp
-*.swo
+# vercel
+.vercel
 
-# Misc
-.DS_Store
-Thumbs.db
-coverage/
-.coverage/
-.cache/
-.parcel-cache/
-.turbo
+# IDE and editor directories
+/.idea
+/.vscode
+*.sublime-project
+*.sublime-workspace
 
-# Debug logs
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# TypeScript
+# typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# storybook
+/storybook-static
+
+# Cache
+.swc/
+.turbo/
