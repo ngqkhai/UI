@@ -14,18 +14,15 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { FileText, Loader2, AlertCircle, Play, Pause } from "lucide-react";
+import { FileText, Loader2, AlertCircle } from "lucide-react";
 import { API_ENDPOINTS } from "@/lib/config";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import WebSocketManager from "@/lib/websocket/WebSocketManager";
 
 interface Configuration {
   id: string;
   name: string;
   description?: string;
-  cloudinary_url?: string;
-  sample_text?: string;
 }
 
 // Replace the entire VideoConfigFormProps interface and VideoConfigurationForm component with this updated version
@@ -42,15 +39,6 @@ interface VideoConfigFormProps {
   onSave: () => void;
 }
 
-// Map of voice sample URLs by voice ID
-const VOICE_SAMPLE_URLS: Record<string, string> = {
-  // Add sample URLs for each voice - update these with your actual Cloudinary URLs
-  "682100514bac275f08fd1e63": "https://res.cloudinary.com/djupm4v0l/video/upload/v1746992018/voice-synthesis/352146c8-0d9f-4231-823e-819aa3cb161c_prxquo.mp3",
-  "682100514bac275f08fd1e64": "https://res.cloudinary.com/djupm4v0l/video/upload/v1746992259/voice-synthesis/sample-2_fvuzbk.mp3", 
-  "682100514bac275f08fd1e65": "https://res.cloudinary.com/djupm4v0l/video/upload/v1746992259/voice-synthesis/sample-3_uumswl.mp3",
-  "682100514bac275f08fd1e66": "https://res.cloudinary.com/djupm4v0l/video/upload/v1746992259/voice-synthesis/sample-4_q4kcka.mp3"
-};
-
 const VideoConfigurationForm = ({
   formData,
   handleChange,
@@ -63,71 +51,6 @@ const VideoConfigurationForm = ({
   durations,
   onSave
 }: VideoConfigFormProps) => {
-  // Add state to track which audio is currently playing
-  const [playingAudio, setPlayingAudio] = useState<string | null>(null);
-  const [loadingAudio, setLoadingAudio] = useState<string | null>(null);
-  const audioRefs = useRef<{[key: string]: HTMLAudioElement | null}>({});
-  const { toast } = useToast();
-
-  // Function to handle playing audio samples
-  const handlePlayAudio = (voiceId: string, url?: string) => {
-    // Find the URL from our map if not provided directly
-    const audioUrl = url || VOICE_SAMPLE_URLS[voiceId];
-    
-    if (!audioUrl) {
-      console.error("No audio URL available for voice:", voiceId);
-      toast({
-        title: "Unable to play audio",
-        description: "No audio sample available for this voice",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    // Stop currently playing audio if any
-    if (playingAudio && playingAudio !== voiceId && audioRefs.current[playingAudio]) {
-      audioRefs.current[playingAudio]?.pause();
-    }
-    
-    // Play or pause the selected audio
-    if (playingAudio === voiceId) {
-      if (audioRefs.current[voiceId]?.paused) {
-        audioRefs.current[voiceId]?.play();
-      } else {
-        audioRefs.current[voiceId]?.pause();
-        setPlayingAudio(null);
-      }
-    } else {
-      // Create audio element if it doesn't exist
-      if (!audioRefs.current[voiceId]) {
-        setLoadingAudio(voiceId);
-        const audio = new Audio(audioUrl);
-        
-        audio.addEventListener('canplaythrough', () => {
-          setLoadingAudio(null);
-          audio.play();
-          setPlayingAudio(voiceId);
-        });
-        
-        audio.addEventListener('error', () => {
-          setLoadingAudio(null);
-          toast({
-            title: "Error",
-            description: "Failed to load audio sample",
-            variant: "destructive",
-          });
-        });
-        
-        audio.addEventListener('ended', () => setPlayingAudio(null));
-        audioRefs.current[voiceId] = audio;
-        audio.load();
-      } else {
-        audioRefs.current[voiceId]?.play();
-        setPlayingAudio(voiceId);
-      }
-    }
-  };
-
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
       {/* Header */}
@@ -201,66 +124,16 @@ const VideoConfigurationForm = ({
               disabled={isLoading}
             >
               <SelectTrigger id="voice" className="h-10 md:h-11 text-sm bg-white border-gray-300 hover:border-gray-400 transition-colors">
-                <SelectValue placeholder="Select voice">
-                  {formData.voice && voices.find(v => v.id === formData.voice)?.description}
-                </SelectValue>
+                <SelectValue placeholder="Select voice" />
               </SelectTrigger>
               <SelectContent>
                 {voices.map((voice) => (
                   <SelectItem key={voice.id} value={voice.id} className="text-sm">
-                    {voice.description || voice.name}
+                    {voice.name}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            
-            {/* Play Button for selected voice */}
-            {formData.voice && voices.length > 0 && (
-              <div className="flex items-center mt-1 bg-blue-50 p-1.5 rounded-md">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  className={`h-8 w-8 p-0 rounded-full mr-2 ${playingAudio === formData.voice ? 'bg-blue-500 border-blue-600 text-white' : 'bg-white hover:bg-blue-100'}`}
-                  onClick={() => {
-                    const selectedVoice = voices.find(v => v.id === formData.voice);
-                    if (selectedVoice) {
-                      const audioUrl = selectedVoice.cloudinary_url || VOICE_SAMPLE_URLS[selectedVoice.id];
-                      if (audioUrl) {
-                        handlePlayAudio(selectedVoice.id, audioUrl);
-                      } else {
-                        console.error("No audio URL for voice:", selectedVoice);
-                        toast({
-                          title: "Unable to play audio",
-                          description: "No audio sample available for this voice",
-                          variant: "destructive",
-                        });
-                      }
-                    }
-                  }}
-                  disabled={loadingAudio === formData.voice || 
-                    !voices.find(v => v.id === formData.voice) || 
-                    (!voices.find(v => v.id === formData.voice)?.cloudinary_url && 
-                     !VOICE_SAMPLE_URLS[formData.voice])}
-                >
-                  {loadingAudio === formData.voice ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : playingAudio === formData.voice ? (
-                    <Pause className="h-4 w-4" />
-                  ) : (
-                    <Play className="h-4 w-4" />
-                  )}
-                </Button>
-                <div className="flex flex-col">
-                  <span className="text-xs text-blue-700 font-medium">Listen to selected voice</span>
-                  {!voices.find(v => v.id === formData.voice)?.cloudinary_url && 
-                   !VOICE_SAMPLE_URLS[formData.voice] && (
-                    <span className="text-xs text-red-500">No audio sample available</span>
-                  )}
-                </div>
-              </div>
-            )}
-            
             <p className="text-xs text-gray-500">The voice for your video narration</p>
           </div>
           
@@ -374,61 +247,66 @@ export default function CreateVideo() {
   const [textError, setTextError] = useState("");
   const [urlError, setUrlError] = useState("");
   const [fileError, setFileError] = useState("");
-  const [scriptGenUrl, setScriptGenUrl] = useState("");
-  const [generationProgress, setGenerationProgress] = useState("");
-  const [generationError, setGenerationError] = useState("");
-  const [wsConnected, setWsConnected] = useState(false);
-  const wsConnectionRef = useRef<WebSocket | null>(null);
-  const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const collectionIdRef = useRef<string | null>(null);
-  const { toast } = useToast();
+  const [generationProgress, setGenerationProgress] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { toast } = useToast();
   
-  // Configuration options fetched from the API
+  // Configuration states
   const [styles, setStyles] = useState<Configuration[]>([]);
   const [languages, setLanguages] = useState<Configuration[]>([]);
   const [voices, setVoices] = useState<Configuration[]>([]);
   const [visualStyles, setVisualStyles] = useState<Configuration[]>([]);
   const [targetAudiences, setTargetAudiences] = useState<Configuration[]>([]);
   const [durations, setDurations] = useState<Configuration[]>([]);
-  
-  // Form data with selected configuration options
-  const [formData, setFormData] = useState<{
-    style: string;
-    language: string;
-    voice: string;
-    visual_style: string;
-    target_audience: string;
-    duration: string;
-    voiceName?: string;
-  }>({
+
+  const [formData, setFormData] = useState({
     style: "",
     language: "",
     voice: "",
     visual_style: "",
-    target_audience: "",
-    duration: ""
+    target_audience: "general",
+    duration: "medium"
   });
 
   // Add this near other state variables
   const [currentCollectionId, setCurrentCollectionId] = useState<string | null>(null);
+
+  // Wrap currentCollectionId in a useRef to prevent unnecessary re-renders
+  const collectionIdRef = useRef<string | null>(null);
+
+
+
+  // Update the collectionIdRef when currentCollectionId changes
+  useEffect(() => {
+    if (currentCollectionId) {
+      collectionIdRef.current = currentCollectionId;
+      console.log("Collection ID updated:", currentCollectionId);
+    }
+  }, [currentCollectionId]);
+
+  // Update the WebSocket status display with more detailed logging
+  useEffect(() => {
+    console.log("WebSocket status changed:", { currentCollectionId, isConnected, webSocketStatus });
+    
+    if (currentCollectionId && isConnected) {
+      setGenerationProgress(`Connected to script generation service. Waiting for script...`);
+    } else if (currentCollectionId && !isConnected) {
+      setGenerationProgress(`Connecting to script generation service...`);
+    }
+  }, [currentCollectionId, isConnected, webSocketStatus]);
+
+  // Add logging for scriptId changes
+  useEffect(() => {
+    if (scriptId) {
+      console.log("Script ID received via WebSocket:", scriptId);
+    }
+  }, [scriptId]);
 
   useEffect(() => {
     if (status === "unauthenticated") {
       router.push("/auth/signin");
     }
   }, [status, router]);
-
-  // Clean up WebSocket when the component unmounts
-  useEffect(() => {
-    return () => {
-      if (collectionIdRef.current) {
-        console.log(`Cleaning up WebSocket for collection ${collectionIdRef.current}`);
-        WebSocketManager.closeConnection(collectionIdRef.current);
-        WebSocketManager.unregisterAllHandlers(collectionIdRef.current);
-      }
-    };
-  }, []);
 
   // Fetch configurations
   useEffect(() => {
@@ -471,15 +349,6 @@ export default function CreateVideo() {
         setStyles(stylesData);
         setLanguages(languagesData);
         setVoices(voicesData);
-        console.log("Voice data received:", voicesData);
-        
-        // Log each voice object details
-        for (let i = 0; i < voicesData.length; i++) {
-          const voice = voicesData[i];
-          console.log(`Voice ${i}:`, voice);
-          console.log(`  Has cloudinary_url:`, !!voice.cloudinary_url);
-          console.log(`  cloudinary_url value:`, voice.cloudinary_url);
-        }
         setVisualStyles(visualStylesData);
         setTargetAudiences(targetAudiencesData);
         setDurations(durationsData);
@@ -492,7 +361,7 @@ export default function CreateVideo() {
         if (targetAudiencesData.length > 0) setFormData(prev => ({ ...prev, target_audience: targetAudiencesData[0].name }));
         if (durationsData.length > 0) setFormData(prev => ({ ...prev, duration: durationsData[0].name }));
       } catch (error) {
-        toast({
+      toast({
           title: "Error",
           description: "Failed to load configurations. Please refresh the page.",
           variant: "destructive",
@@ -519,21 +388,6 @@ export default function CreateVideo() {
 
   const handleChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
-    
-    // If changing voice, find the voice object and store its name separately for API requests
-    if (field === "voice") {
-      const selectedVoice = voices.find(v => v.id === value);
-      if (selectedVoice) {
-        // We need to store the name (not the description) for the voice synthesis API
-        setFormData(prev => ({ 
-          ...prev, 
-          [field]: value,  // The ID is stored in the main field
-          voiceName: selectedVoice.name  // Store the name for API requests
-        } as typeof prev));
-        
-        console.log(`Selected voice: ID=${value}, Name=${selectedVoice.name}, Description=${selectedVoice.description}`);
-      }
-    }
   };
 
   // Validate text input
@@ -634,6 +488,7 @@ export default function CreateVideo() {
     setGenerationProgress("Initializing...");
     
     try {
+      let content = "";
       let collectionId = null;
       console.log("Active tab:", activeTab);
       console.log("Form data:", formData);
@@ -648,34 +503,20 @@ export default function CreateVideo() {
       const styleData = findNameById(styles, formData.style);
       const targetAudienceData = findNameById(targetAudiences, formData.target_audience);
       const durationData = findNameById(durations, formData.duration);
+      const voiceData = findNameById(voices, formData.voice);
       const languageData = findNameById(languages, formData.language);
       const visualStyleData = findNameById(visualStyles, formData.visual_style);
-      
-      // For voice, use the stored name rather than finding by ID
-      const voiceData = formData.voiceName || findNameById(voices, formData.voice);
-      
-      // Log selected voice information to help debug
-      const selectedVoice = voices.find(v => v.id === formData.voice);
-      console.log('Selected voice for generation:', {
-        id: formData.voice,
-        name: selectedVoice?.name,
-        description: selectedVoice?.description,
-        voiceData: voiceData
-      });
       
       // Handle different input methods
       if (activeTab === "url") {
         console.log("URL validation:", validateUrl(scriptUrl));
-        if (!validateUrl(scriptUrl)) {
-          setLoading(false);
-          return;
-        }
+        if (!validateUrl(scriptUrl)) return;
         const response = await fetch(API_ENDPOINTS.wikipedia, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ 
             url: scriptUrl, 
-            style: styleData, 
+            script_type: styleData, 
             target_audience: targetAudienceData, 
             duration: durationData, 
             voice: voiceData, 
@@ -692,14 +533,11 @@ export default function CreateVideo() {
         console.log("URL response data:", data);
         collectionId = data.collection_id;
       } else if (activeTab === "file") {
-        if (!validateFile(scriptFile)) {
-          setLoading(false);
-          return;
-        }
+        if (!validateFile(scriptFile)) return;
 
         const formDataObj = new FormData();
         formDataObj.append("file", scriptFile!);
-        formDataObj.append("style", styleData);
+        formDataObj.append("script_type", styleData);
         formDataObj.append("target_audience", targetAudienceData);
         formDataObj.append("duration", durationData);
         formDataObj.append("voice", voiceData);
@@ -720,10 +558,7 @@ export default function CreateVideo() {
         collectionId = data.collection_id;
       } else {
         // Text input
-        if (!validateText(scriptText)) {
-          setLoading(false);
-          return;
-        }
+        if (!validateText(scriptText)) return;
         
         // For text input, we need to create a collection first
         const response = await fetch(API_ENDPOINTS.collections, {
@@ -734,7 +569,7 @@ export default function CreateVideo() {
             content: scriptText,
             metadata: {
               source: "user_input",
-              style: styleData,
+              script_type: styleData,
               target_audience: targetAudienceData,
               voice: voiceData,
               duration: durationData,
@@ -742,101 +577,40 @@ export default function CreateVideo() {
               visual_style: visualStyleData
             }
           }),
-        });
-        
-        if (!response.ok) {
+      });
+      
+      if (!response.ok) {
           throw new Error("Failed to create collection from text");
-        }
-        
-        const data = await response.json();
+      }
+      
+      const data = await response.json();
         console.log("Text collection response:", data);
         collectionId = data.collection_id || data.id;
       }
 
-      // If we have a collection ID, store it and set up WebSocket
+      // If we have a collection ID, we need to wait for script generation
       if (collectionId) {
-        // Store collection ID in ref for future WebSocket access
+        // Store the collection ID stably
         collectionIdRef.current = collectionId;
+        // Also update the state for UI updates
         setCurrentCollectionId(collectionId);
         
-        // Set up WebSocket connection for real-time updates
-        const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000/ws';
-        const wsUrlWithCollectionId = `${wsUrl}?collection_id=${collectionId}`;
-        
-        console.log(`Setting up WebSocket connection to ${wsUrlWithCollectionId}`);
-        
-        // Set up WebSocket handlers for this collection
-        WebSocketManager.on(collectionId, 'status', (connected: boolean) => {
-          console.log(`WebSocket connection status for ${collectionId}: ${connected}`);
-          setWsConnected(connected);
+        setGenerationProgress("Processing content...");
+      toast({
+          title: "Processing Content",
+          description: "Your content is being analyzed and a script will be generated shortly.",
         });
         
-        WebSocketManager.on(collectionId, 'message', (data: any) => {
-          console.log(`WebSocket message for ${collectionId}:`, data);
-          
-          // Handle different message types
-          if (data.type === 'script_generated' && data.script_id) {
-            toast({
-              title: "Script Generated",
-              description: "Your script has been generated successfully!",
-            });
-            
-            // Redirect to the script review page
-            router.push(`/dashboard/script-review/${data.script_id}`);
-          } else if (data.type === 'collection_status') {
-            setGenerationProgress(`${data.status} (${data.progress || 0}%)`);
-          } else if (data.type === 'job_complete') {
-            // Complete job with all assets
-            setGenerationProgress("Complete!");
-            toast({
-              title: "Success",
-              description: "Video assets generated successfully!",
-            });
-            setLoading(false);
-            
-            // Redirect to the script review page
-            if (data.script_id) {
-              router.push(`/dashboard/script-review/${data.script_id}`);
-            }
-          } else if (data.type === 'error') {
-            // Handle error messages
-            setGenerationProgress("");
-            toast({
-              title: "Error",
-              description: data.message || "An error occurred during processing",
-              variant: "destructive",
-            });
-            setLoading(false);
-          }
-        });
-        
-        WebSocketManager.on(collectionId, 'error', (error: Error) => {
-          console.error(`WebSocket error for ${collectionId}:`, error);
-          toast({
-            title: "Connection Error",
-            description: "Lost connection to the server. Updates may be delayed.",
-            variant: "destructive",
-          });
-        });
-        
-        // Create the WebSocket connection
-        const socket = WebSocketManager.getConnection(collectionId, wsUrlWithCollectionId);
-        wsConnectionRef.current = socket;
-        
-        setGenerationProgress("Connected. Waiting for processing to begin...");
-        
-        // The collection has been created, API Gateway should already be subscribed to script.ready events
-        // Just need to make sure the WebSocket is established so we can receive updates
-        toast({
-          title: "Processing Started",
-          description: "Your content is being processed. You'll receive updates in real-time.",
-        });
+        // The data collector will publish to RabbitMQ and the script generator will process
+        // the message automatically, so we don't need a separate API call.
+        // Just wait for the WebSocket notification
+        console.log("Waiting for script generation via RabbitMQ and WebSocket notification...");
         
       } else {
         throw new Error("Failed to get collection ID");
       }
     } catch (error) {
-      setGenerationProgress("");
+      setGenerationProgress(null);
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "An unexpected error occurred",
@@ -845,7 +619,7 @@ export default function CreateVideo() {
       setLoading(false);
     }
   };
-  
+
   // Add this function to handle the save operation from the VideoConfigurationForm
   const handleSaveConfig = () => {
     toast({
@@ -854,7 +628,7 @@ export default function CreateVideo() {
     });
     // Additional logic can be added here if needed
   };
-
+  
   return (
     <div className="flex flex-col lg:flex-row gap-6 px-4 py-6 md:px-6 md:py-8 max-w-[1400px] mx-auto">
       {/* Left Column - Form */}
@@ -875,14 +649,14 @@ export default function CreateVideo() {
                   URL
                 </TabsTrigger>
               </TabsList>
-
+              
               {/* Text Input Tab */}
               <TabsContent value="text" className="space-y-3 md:space-y-4">
                 <div className="space-y-2 md:space-y-3">
                   <Label htmlFor="script-text" className="text-base md:text-lg font-medium">
                     Detail Script
                   </Label>
-                  <Textarea
+                <Textarea
                     id="script-text"
                     placeholder="e.g., Detailed explanation of Quantum Mechanics"
                     value={scriptText}
@@ -898,7 +672,7 @@ export default function CreateVideo() {
                   <div className="text-xs md:text-sm text-muted-foreground">{scriptText.length}/5000 characters (minimum 50)</div>
                 </div>
               </TabsContent>
-
+              
               {/* File Upload Tab */}
               <TabsContent value="file" className="space-y-3 md:space-y-4">
                 <div className="space-y-2 md:space-y-3">
@@ -947,7 +721,7 @@ export default function CreateVideo() {
                   )}
                 </div>
               </TabsContent>
-
+              
               {/* URL Tab */}
               <TabsContent value="url" className="space-y-3 md:space-y-4">
                 <div className="space-y-2 md:space-y-3">
@@ -962,8 +736,8 @@ export default function CreateVideo() {
                       value={scriptUrl}
                       onChange={handleUrlChange}
                       className={`flex-1 h-10 md:h-12 text-sm md:text-base ${urlError ? "border-red-500" : ""}`}
-                    />
-                  </div>
+                        />
+                      </div>
                   {urlError && (
                     <div className="flex items-center text-red-500 text-xs md:text-sm">
                       <AlertCircle className="h-3 w-3 md:h-4 md:w-4 mr-1" />
@@ -978,7 +752,7 @@ export default function CreateVideo() {
             </Tabs>
           </div>
 
-          {/* Video Configuration Section */}
+          {/* Video Configuration Section - Replace the old configuration section with the new component */}
           <VideoConfigurationForm
             formData={formData}
             handleChange={handleChange}
@@ -1001,12 +775,18 @@ export default function CreateVideo() {
                   <p className="text-sm md:text-base text-blue-700 font-medium">{generationProgress}</p>
                 </div>
                 <div className="mt-2 h-1.5 md:h-2 bg-blue-200 rounded-full overflow-hidden">
-                  <div className="h-full bg-blue-600 rounded-full animate-pulse" style={{ width: '30%' }}></div>
+                  <div className={`h-full bg-blue-600 rounded-full ${isConnected ? 'animate-pulse' : ''}`} style={{ width: scriptId ? '100%' : '30%' }}></div>
                 </div>
-              </div>
-            )}
-
-            <Button
+                {currentCollectionId && (
+                  <div className="mt-2 flex items-center text-xs text-gray-500">
+                    <span className={`inline-block h-1.5 w-1.5 md:h-2 md:w-2 rounded-full mr-2 ${isConnected ? 'bg-green-500' : 'bg-yellow-500'}`}></span>
+                    <span>{isConnected ? 'Connected to script service' : 'Connecting to script service...'}</span>
+                  </div>
+                )}
+          </div>
+        )}
+      
+          <Button 
               type="submit"
               className="w-full bg-blue-700 hover:bg-blue-800 h-10 md:h-14 text-sm md:text-lg font-medium"
               disabled={loading || isLoadingConfigs}
@@ -1016,14 +796,14 @@ export default function CreateVideo() {
                 <>
                   <Loader2 className="mr-2 h-4 w-4 md:h-6 md:w-6 animate-spin" />
                   {generationProgress ? "Generating..." : "Processing..."}
-                </>
-              ) : (
+              </>
+            ) : (
                 "Generate Video"
-              )}
-            </Button>
+            )}
+          </Button>
           </div>
         </form>
       </div>
     </div>
   );
-}
+} 

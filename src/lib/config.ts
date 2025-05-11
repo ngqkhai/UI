@@ -21,4 +21,10 @@ export const API_ENDPOINTS = {
     visualStyles: `${API_BASE_URL}/api/configurations/visual-styles`,
     targetAudiences: `${API_BASE_URL}/api/configurations/target-audiences`,
     durations: `${API_BASE_URL}/api/configurations/durations`,
+    
+    // Voice synthesis
+    voiceSynthesize: `${API_BASE_URL}/api/v1/voice/synthesize`,
+    
+    // Visuals generation
+    visuals: `${API_BASE_URL}/api/visuals`,
 } as const; 
