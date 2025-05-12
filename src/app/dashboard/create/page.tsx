@@ -524,14 +524,11 @@ export default function CreateVideo() {
     if (field === "voice") {
       const selectedVoice = voices.find(v => v.id === value);
       if (selectedVoice) {
-        // We need to store the name (not the description) for the voice synthesis API
         setFormData(prev => ({ 
           ...prev, 
-          [field]: value,  // The ID is stored in the main field
-          voiceName: selectedVoice.name  // Store the name for API requests
+          [field]: value,
+          voiceName: selectedVoice.name  // Store the name separately for API requests
         } as typeof prev));
-        
-        console.log(`Selected voice: ID=${value}, Name=${selectedVoice.name}, Description=${selectedVoice.description}`);
       }
     }
   };
@@ -653,15 +650,6 @@ export default function CreateVideo() {
       
       // For voice, use the stored name rather than finding by ID
       const voiceData = formData.voiceName || findNameById(voices, formData.voice);
-      
-      // Log selected voice information to help debug
-      const selectedVoice = voices.find(v => v.id === formData.voice);
-      console.log('Selected voice for generation:', {
-        id: formData.voice,
-        name: selectedVoice?.name,
-        description: selectedVoice?.description,
-        voiceData: voiceData
-      });
       
       // Handle different input methods
       if (activeTab === "url") {
